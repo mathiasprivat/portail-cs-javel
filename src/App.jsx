@@ -1521,7 +1521,7 @@ export default function Portal() {
 }
 
 // ── Password (change this to your chosen password) ────────────────────────────
-const PORTAL_PASSWORD = "Javel2026!";
+const PORTAL_PASSWORD = "Javel";
 const SESSION_KEY = "cs-javel-auth";
 
 // ── Login screen ──────────────────────────────────────────────────────────────
