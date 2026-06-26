@@ -1165,7 +1165,7 @@ const TABS = [
 ];
 
 // ── APP ────────────────────────────────────────────────────────────────────────
-export default function App() {
+export default function Portal() {
   const [tab, setTab] = useState("accueil");
 
   // ── Persisted list states (onglets 2 & 3) ────────────────────────────────────
@@ -1518,4 +1518,148 @@ export default function App() {
       </div>
     </div>
   );
+}
+
+// ── Password (change this to your chosen password) ────────────────────────────
+const PORTAL_PASSWORD = "Javel2026!";
+const SESSION_KEY = "cs-javel-auth";
+
+// ── Login screen ──────────────────────────────────────────────────────────────
+function LoginScreen({ onSuccess }) {
+  const [pwd, setPwd] = useState("");
+  const [error, setError] = useState(false);
+  const [shake, setShake] = useState(false);
+  const inputRef = useRef();
+
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  const handleSubmit = () => {
+    if (pwd === PORTAL_PASSWORD) {
+      try { sessionStorage.setItem(SESSION_KEY, "1"); } catch {}
+      onSuccess();
+    } else {
+      setError(true);
+      setShake(true);
+      setPwd("");
+      setTimeout(() => setShake(false), 500);
+    }
+  };
+
+  return (
+    <div style={{
+      minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
+      background: "linear-gradient(180deg,#1a2a3a 0%,#2C3E50 60%,#3d5166 100%)",
+      fontFamily: "Inter, system-ui, sans-serif",
+    }}>
+      {/* Subtle window grid in background */}
+      <div style={{ position: "fixed", inset: 0, overflow: "hidden", pointerEvents: "none" }}>
+        {Array.from({ length: 48 }).map((_, i) => (
+          <div key={i} style={{
+            position: "absolute",
+            left: `${8 + (i % 6) * 15.5}%`,
+            top: `${5 + Math.floor(i / 6) * 11}%`,
+            width: "8%", height: "7%",
+            background: i % 3 === 0 ? "rgba(255,220,120,0.1)" : "rgba(20,40,60,0.5)",
+            border: "1px solid rgba(184,115,51,0.15)", borderRadius: 1,
+          }} />
+        ))}
+      </div>
+
+      <div style={{
+        position: "relative", zIndex: 1,
+        background: "rgba(250,250,248,0.97)",
+        borderRadius: 12, padding: "40px 44px",
+        width: "100%", maxWidth: 400,
+        boxShadow: "0 24px 60px rgba(0,0,0,0.4)",
+        animation: shake ? "shake 0.4s ease" : "none",
+      }}>
+        <style>{`
+          @keyframes shake {
+            0%,100% { transform: translateX(0); }
+            20% { transform: translateX(-10px); }
+            40% { transform: translateX(10px); }
+            60% { transform: translateX(-8px); }
+            80% { transform: translateX(8px); }
+          }
+        `}</style>
+
+        {/* Header */}
+        <div style={{ textAlign: "center", marginBottom: 28 }}>
+          <div style={{ fontSize: 11, color: "#B87333", textTransform: "uppercase", letterSpacing: "0.2em", marginBottom: 8 }}>
+            Copropriété · 94-96 rue de Javel · Paris 15e
+          </div>
+          <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 22, fontWeight: 700, color: "#2C3E50", margin: 0 }}>
+            Portail du Conseil Syndical
+          </h1>
+          <div style={{ fontSize: 12, color: "#7F8C8D", marginTop: 6 }}>
+            Accès réservé aux membres du CS
+          </div>
+        </div>
+
+        {/* Lock icon */}
+        <div style={{ textAlign: "center", fontSize: 36, marginBottom: 24 }}>🔒</div>
+
+        {/* Password field */}
+        <div style={{ marginBottom: 16 }}>
+          <label style={{
+            display: "block", fontSize: 11, fontWeight: 700, color: "#7F8C8D",
+            textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6,
+          }}>Mot de passe</label>
+          <input
+            ref={inputRef}
+            type="password"
+            value={pwd}
+            onChange={e => { setPwd(e.target.value); setError(false); }}
+            onKeyDown={e => e.key === "Enter" && handleSubmit()}
+            placeholder="••••••••••"
+            style={{
+              width: "100%", boxSizing: "border-box",
+              fontFamily: "Inter, system-ui, sans-serif",
+              fontSize: 16, color: "#2C3E50",
+              border: `1.5px solid ${error ? "#e53935" : "#E8E0D4"}`,
+              borderRadius: 6, padding: "10px 14px",
+              background: "white", outline: "none",
+              transition: "border-color 0.2s",
+            }}
+          />
+          {error && (
+            <div style={{ fontSize: 12, color: "#e53935", marginTop: 6, fontWeight: 600 }}>
+              Mot de passe incorrect. Réessayez.
+            </div>
+          )}
+        </div>
+
+        {/* Submit button */}
+        <button
+          onClick={handleSubmit}
+          style={{
+            width: "100%", background: "#2C3E50", color: "white",
+            border: "none", borderRadius: 6, padding: "12px",
+            fontSize: 14, fontWeight: 700, cursor: "pointer",
+            fontFamily: "Inter, system-ui, sans-serif",
+            letterSpacing: "0.04em",
+            transition: "background 0.2s",
+          }}
+          onMouseEnter={e => e.currentTarget.style.background = "#1a252f"}
+          onMouseLeave={e => e.currentTarget.style.background = "#2C3E50"}
+        >
+          Accéder au portail →
+        </button>
+
+        <div style={{ textAlign: "center", fontSize: 11, color: "#7F8C8D", marginTop: 16 }}>
+          Contactez le président du CS si vous n'avez pas le mot de passe.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Root App with auth gate ───────────────────────────────────────────────────
+export default function App() {
+  const [authed, setAuthed] = useState(() => {
+    try { return sessionStorage.getItem(SESSION_KEY) === "1"; } catch { return false; }
+  });
+
+  if (!authed) return <LoginScreen onSuccess={() => setAuthed(true)} />;
+  return <Portal />;
 }
