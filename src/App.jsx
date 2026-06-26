@@ -333,53 +333,61 @@ function OwnerDropdown({ value, onChange }) {
 }
 
 // ── Generic expandable card ────────────────────────────────────────────────────
-function ProjectCard({ project, onChange, accentColor, statusLabel, showBudget = false, showResolution = false }) {
+function ProjectCard({ project, onChange, onDelete, accentColor, statusLabel, showBudget = false, showResolution = false, showCost = false, showDemandeur = false }) {
   const [open, setOpen] = useState(false);
   const done = project.steps.length > 0 && project.steps.every(s => s.checked);
-  const headerBg = accentColor + "22";
 
   const updateStep = (i, patch) => {
     const steps = project.steps.map((s, j) => j === i ? { ...s, ...patch } : s);
     onChange({ ...project, steps });
   };
 
+  const extra = (
+    <>
+      {showBudget && project.budget && <span style={{ fontFamily: "Inter, system-ui, sans-serif", fontSize: 12, color: accentColor, fontWeight: 600, background: accentColor + "18", borderRadius: 4, padding: "1px 8px", whiteSpace: "nowrap" }}>{project.budget}</span>}
+      {showCost && project.cost && <span style={{ fontFamily: "Inter, system-ui, sans-serif", fontSize: 12, color: accentColor, fontWeight: 600, background: accentColor + "18", borderRadius: 4, padding: "1px 8px", whiteSpace: "nowrap" }}>{project.cost}</span>}
+    </>
+  );
+
   return (
     <div style={{ border: `1px solid ${accentColor}40`, borderRadius: 8, marginBottom: 12, overflow: "hidden", boxShadow: "0 2px 8px rgba(44,62,80,0.07)" }}>
-      <div onClick={() => setOpen(o => !o)} style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        background: headerBg, padding: "11px 16px", cursor: "pointer",
-        borderLeft: `4px solid ${accentColor}`,
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <span style={{
-            background: done ? C.green : accentColor, color: "white", borderRadius: 4,
-            padding: "2px 8px", fontSize: 10, fontFamily: "Inter, system-ui, sans-serif",
-            fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", whiteSpace: "nowrap",
-          }}>{done ? "Terminé" : (statusLabel || "En cours")}</span>
-          <span style={{ fontFamily: "'Playfair Display',Georgia,serif", fontSize: 15, fontWeight: 700, color: C.slate }}>{project.title}</span>
-          {showBudget && project.budget && (
-            <span style={{ fontFamily: "Inter, system-ui, sans-serif", fontSize: 12, color: accentColor, fontWeight: 600, background: accentColor + "18", borderRadius: 4, padding: "1px 8px", whiteSpace: "nowrap" }}>
-              {project.budget}
-            </span>
-          )}
-        </div>
-        <span style={{ color: C.steel, fontSize: 13, marginLeft: 8 }}>{open ? "▲" : "▼"}</span>
-      </div>
-
+      <CardHeader
+        title={project.title}
+        accentColor={accentColor}
+        badge={done ? "Terminé" : (statusLabel || "En cours")}
+        badgeColor={done ? C.green : accentColor}
+        extra={extra}
+        open={open}
+        onToggle={() => setOpen(o => !o)}
+        onRename={t => onChange({ ...project, title: t })}
+        onDelete={onDelete}
+      />
       {open && (
         <div style={{ padding: "16px 20px", background: C.cream }}>
-          <div style={{ display: "grid", gridTemplateColumns: showBudget ? "1fr 1fr" : "1fr", gap: 12, marginBottom: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: (showBudget || showCost) ? "1fr 1fr" : "1fr", gap: 12, marginBottom: 14 }}>
             <div>
               <label style={labelStyle}>👤 Responsable</label>
               <OwnerDropdown value={project.owner} onChange={v => onChange({ ...project, owner: v })} />
             </div>
             {showBudget && (
               <div>
-                <label style={labelStyle}>💰 Budget (TTC)</label>
+                <label style={labelStyle}>💰 Budget voté (TTC)</label>
                 <input value={project.budget || ""} onChange={e => onChange({ ...project, budget: e.target.value })} style={inputStyle} placeholder="ex : 18 210 €" />
               </div>
             )}
+            {showCost && (
+              <div>
+                <label style={labelStyle}>💰 Coûts estimés (TTC)</label>
+                <input value={project.cost || ""} onChange={e => onChange({ ...project, cost: e.target.value })} style={inputStyle} placeholder="ex : 3 500 €" />
+              </div>
+            )}
           </div>
+          {showDemandeur && (
+            <div style={{ marginBottom: 14 }}>
+              <label style={labelStyle}>🏠 Copropriétaire demandeur</label>
+              <input value={project.demandeur || ""} onChange={e => onChange({ ...project, demandeur: e.target.value })} style={inputStyle} placeholder="Nom du copropriétaire (non limité aux membres du CS)" />
+            </div>
+          )}
           {showResolution && (
             <div style={{ marginBottom: 14 }}>
               <label style={labelStyle}>📋 Résolution AG</label>
@@ -389,16 +397,12 @@ function ProjectCard({ project, onChange, accentColor, statusLabel, showBudget =
           <div style={{ marginBottom: 14 }}>
             <label style={labelStyle}>✅ Prochaines étapes</label>
             {project.steps.map((step, i) => (
-              <ChecklistItem
-                key={i}
-                text={step.text}
-                checked={step.checked}
+              <ChecklistItem key={i} text={step.text} checked={step.checked}
                 onCheck={() => updateStep(i, { checked: !step.checked })}
                 onEdit={text => updateStep(i, { text })}
               />
             ))}
-            <StepAdder
-              accentColor={accentColor}
+            <StepAdder accentColor={accentColor}
               onAdd={text => onChange({ ...project, steps: [...project.steps, { text, checked: false }] })}
             />
           </div>
@@ -532,10 +536,10 @@ function MemberPicker({ project, onChange }) {
 }
 
 // ── Long-term card ─────────────────────────────────────────────────────────────
-function LongTermCard({ project, onChange }) {
+function LongTermCard({ project, onChange, onDelete }) {
   const [open, setOpen] = useState(false);
   const [noteDraft, setNoteDraft] = useState(project.comment);
-  const [saveStatus, setSaveStatus] = useState("idle"); // "idle" | "saving" | "saved" | "error"
+  const [saveStatus, setSaveStatus] = useState("idle");
   const storageKey = `lt-note-${project.id}`;
   const savedComment = useRef(project.comment);
 
@@ -544,7 +548,6 @@ function LongTermCard({ project, onChange }) {
   const handleSave = () => {
     setSaveStatus("saving");
     try {
-      // onChange = updateLongterm, which persists to localStorage automatically
       onChange({ ...project, comment: noteDraft });
       savedComment.current = noteDraft;
       setSaveStatus("saved");
@@ -555,24 +558,21 @@ function LongTermCard({ project, onChange }) {
     }
   };
 
+  const leadNames = project.members.filter(m => m.lead).map(m => m.name).join(", ");
+  const extra = leadNames ? <span style={{ fontSize: 12, color: C.slate, fontFamily: "Inter, system-ui, sans-serif" }}>★ {leadNames}</span> : null;
+
   return (
     <div style={{ border: `1px solid #7F8C8D40`, borderRadius: 8, marginBottom: 12, overflow: "hidden", boxShadow: "0 2px 8px rgba(44,62,80,0.07)" }}>
-      <div onClick={() => setOpen(o => !o)} style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        background: "#DDE4EC", padding: "11px 16px", cursor: "pointer",
-        borderLeft: `4px solid ${C.slate}`,
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ background: C.slate, color: "white", borderRadius: 4, padding: "2px 8px", fontSize: 10, fontFamily: "Inter, system-ui, sans-serif", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>Groupe de travail</span>
-          <span style={{ fontFamily: "'Playfair Display',Georgia,serif", fontSize: 15, fontWeight: 700, color: C.slate }}>{project.title}</span>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {project.members.filter(m => m.lead).map((m, i) => (
-            <span key={i} style={{ fontSize: 12, color: C.slate, fontFamily: "Inter, system-ui, sans-serif" }}>★ {m.name}</span>
-          ))}
-          <span style={{ color: C.steel, fontSize: 13, marginLeft: 4 }}>{open ? "▲" : "▼"}</span>
-        </div>
-      </div>
+      <CardHeader
+        title={project.title}
+        accentColor={C.slate}
+        badge="Groupe de travail"
+        extra={extra}
+        open={open}
+        onToggle={() => setOpen(o => !o)}
+        onRename={t => onChange({ ...project, title: t })}
+        onDelete={onDelete}
+      />
 
       {open && (
         <div style={{ padding: "16px 20px", background: C.cream }}>
@@ -636,6 +636,125 @@ function LongTermCard({ project, onChange }) {
             </div>
           </div>
 
+          <div>
+            <label style={labelStyle}>📎 Documents</label>
+            <FileZone files={project.files} onAdd={names => onChange({ ...project, files: [...project.files, ...names] })} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Reusable card header: title edit + delete + toggle ────────────────────────
+function CardHeader({ title, accentColor, badge, badgeColor, extra, open, onToggle, onRename, onDelete }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(title);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const inputRef = useRef();
+
+  const startEdit = (e) => { e.stopPropagation(); setDraft(title); setEditing(true); setTimeout(() => inputRef.current?.focus(), 30); };
+  const commitEdit = () => { if (draft.trim()) onRename(draft.trim()); setEditing(false); };
+
+  const handleDelete = (e) => {
+    e.stopPropagation();
+    if (confirmDelete) { onDelete(); }
+    else { setConfirmDelete(true); setTimeout(() => setConfirmDelete(false), 3000); }
+  };
+
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", justifyContent: "space-between",
+      background: accentColor + "22", padding: "11px 16px", cursor: "pointer",
+      borderLeft: `4px solid ${accentColor}`,
+    }}>
+      {/* Left: badge + title (editable) */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", flex: 1, minWidth: 0 }} onClick={!editing ? onToggle : undefined}>
+        {badge && (
+          <span style={{
+            background: badgeColor || accentColor, color: "white", borderRadius: 4,
+            padding: "2px 8px", fontSize: 10, fontFamily: "Inter, system-ui, sans-serif",
+            fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", whiteSpace: "nowrap", flexShrink: 0,
+          }}>{badge}</span>
+        )}
+        {editing ? (
+          <input
+            ref={inputRef}
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter") commitEdit(); if (e.key === "Escape") setEditing(false); }}
+            onBlur={commitEdit}
+            onClick={e => e.stopPropagation()}
+            style={{ ...inputStyle, flex: 1, minWidth: 120, padding: "4px 8px", fontSize: 14, fontWeight: 700, fontFamily: "'Playfair Display',Georgia,serif" }}
+          />
+        ) : (
+          <span style={{ fontFamily: "'Playfair Display',Georgia,serif", fontSize: 15, fontWeight: 700, color: C.slate, flex: 1 }}>{title}</span>
+        )}
+        {extra}
+      </div>
+
+      {/* Right: action icons + toggle */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: 8, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+        {/* Edit title */}
+        {!editing && (
+          <span
+            onClick={startEdit}
+            title="Modifier le titre"
+            style={{ cursor: "pointer", fontSize: 13, opacity: 0.45, transition: "opacity 0.15s", padding: "2px 4px" }}
+            onMouseEnter={e => e.currentTarget.style.opacity = "0.9"}
+            onMouseLeave={e => e.currentTarget.style.opacity = "0.45"}
+          >✏️</span>
+        )}
+        {/* Delete */}
+        <span
+          onClick={handleDelete}
+          title={confirmDelete ? "Cliquer pour confirmer la suppression" : "Supprimer"}
+          style={{
+            cursor: "pointer", fontSize: 13, padding: "2px 6px", borderRadius: 4,
+            background: confirmDelete ? C.red : "transparent",
+            color: confirmDelete ? "white" : "inherit",
+            opacity: confirmDelete ? 1 : 0.45,
+            fontFamily: "Inter, system-ui, sans-serif", fontWeight: confirmDelete ? 700 : 400,
+            fontSize: confirmDelete ? 11 : 14,
+            transition: "all 0.15s",
+          }}
+          onMouseEnter={e => { if (!confirmDelete) e.currentTarget.style.opacity = "0.9"; }}
+          onMouseLeave={e => { if (!confirmDelete) e.currentTarget.style.opacity = "0.45"; }}
+        >{confirmDelete ? "Confirmer ?" : "×"}</span>
+        {/* Toggle */}
+        <span onClick={onToggle} style={{ color: C.steel, fontSize: 13, cursor: "pointer", padding: "2px 4px" }}>{open ? "▲" : "▼"}</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Travaux individuels card (simplified: no owner, no checklist) ─────────────
+function TravIndivCard({ project, onChange, onDelete }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ border: `1px solid ${C.steel}40`, borderRadius: 8, marginBottom: 12, overflow: "hidden", boxShadow: "0 2px 8px rgba(44,62,80,0.07)" }}>
+      <CardHeader
+        title={project.title}
+        accentColor={C.steel}
+        badge="À soumettre en AG"
+        extra={project.demandeur ? <span style={{ fontSize: 12, color: C.steel, fontFamily: "Inter, system-ui, sans-serif" }}>— {project.demandeur}</span> : null}
+        open={open}
+        onToggle={() => setOpen(o => !o)}
+        onRename={t => onChange({ ...project, title: t })}
+        onDelete={onDelete}
+      />
+      {open && (
+        <div style={{ padding: "16px 20px", background: C.cream }}>
+          <div style={{ marginBottom: 14 }}>
+            <label style={labelStyle}>🏠 Copropriétaire demandeur</label>
+            <input value={project.demandeur || ""} onChange={e => onChange({ ...project, demandeur: e.target.value })}
+              style={inputStyle} placeholder="Nom du copropriétaire (non limité aux membres du CS)" />
+          </div>
+          <div style={{ marginBottom: 14 }}>
+            <label style={labelStyle}>💬 Description / commentaires</label>
+            <textarea value={project.comment} onChange={e => onChange({ ...project, comment: e.target.value })}
+              rows={4} style={{ ...inputStyle, resize: "vertical" }} placeholder="Nature des travaux, contexte, localisation…" />
+          </div>
           <div>
             <label style={labelStyle}>📎 Documents</label>
             <FileZone files={project.files} onAdd={names => onChange({ ...project, files: [...project.files, ...names] })} />
@@ -747,6 +866,7 @@ const INIT_PARTIES_COMMUNES = [
 const INIT_CS_PREROGA = [
   {
     id: 1, title: "Réorganisation du local à vélos — racks suspendus", owner: "Mathias Privat",
+    budget: "", resolution: "",
     comment: "Projet initié suite à l'étiquetage des vélos (mars 2026). Objectif : installer des racks suspendus pour optimiser l'espace. Trois étapes séquentielles : (1) obtenir 2 devis via Atrium, (2) soumettre au CS pour accord sous 7 jours, (3) donner le go au prestataire retenu.",
     files: [],
     steps: [
@@ -755,15 +875,6 @@ const INIT_CS_PREROGA = [
       { text: "Soumettre les devis au CS pour accord (délai : 7 jours)", checked: false },
       { text: "Notifier Atrium du prestataire retenu et donner le go", checked: false },
       { text: "Suivi de l'intervention et réception des travaux", checked: false },
-    ],
-  },
-  {
-    id: 2, title: "Distribution des badges Vigik", owner: "Mathias Privat",
-    comment: "", files: [],
-    steps: [
-      { text: "Lister les copropriétaires n'ayant pas reçu leur badge", checked: false },
-      { text: "Relancer Atrium pour organisation de la distribution", checked: false },
-      { text: "Confirmer bonne réception par tous", checked: false },
     ],
   },
 ];
@@ -823,7 +934,7 @@ const INIT_URGENT_ACTIONS = [
 const INIT_LONGTERM = [
   {
     id: 1, title: "Remplacement des chaudières",
-    members: [{ name: "Antoine Jean", lead: true }, { name: "Jean-Jacques Chevalier", lead: false }],
+    members: [{ name: "Antoine Jean", lead: true }, { name: "Jean-Jacques Chevalier", lead: false }, { name: "Jean-Baptiste Petteni", lead: false }],
     comment: "Trois options à l'étude : (1) raccordement RCU/CPCU, (2) pompe à chaleur collective, (3) remplacement chaudières gaz. Études DELGY en cours. Coût annuel actuel gaz : ~26 838 € TTC ; simulation RCU : ~28 984 € TTC.",
     files: [],
   },
@@ -841,7 +952,7 @@ const INIT_LONGTERM = [
   },
   {
     id: 4, title: "Suivi comptabilité et réflexions financières",
-    members: [{ name: "Yves Ripert", lead: true }],
+    members: [{ name: "Yves Ripert", lead: true }, { name: "Jean-Baptiste Petteni", lead: false }],
     comment: "",
     files: [],
   },
@@ -852,10 +963,10 @@ const pptData = [
   {
     id: "ppt-1",
     title: "Réparation façade Sud (6ᵉ étage, maçonnerie + étanchéité)",
-    nature: "Travaux nécessaires pour entretien immeuble",
+    nature: "Travaux nécessaires",
     owner: "Denis Barbet-Massin",
     valeur: "Évite propagation d'infiltrations, supprime risque de sinistres lourds (5–15 k€/logement si réparation isolée)",
-    beneficiaires: "Copropriétaires du 6ᵉ étage (exposés aux infiltrations) + copropriété entière (évite propagation)",
+    beneficiaires: "Copropriétaires du 6ᵉ étage (exposés aux infiltrations) + copropriété entière (évite propagation) — Denis Barbet-Massin",
     status: "Fait - Déjà voté (2025–2026)",
   },
   {
@@ -863,6 +974,7 @@ const pptData = [
     title: "Remplacement / réparation des garde-corps non conformes du 6ᵉ étage",
     nature: "Travaux de sécurité",
     owner: "Denis Barbet-Massin",
+    budget: "18 210 € TTC",
     valeur: "Mise en conformité sécurité des personnes, évite responsabilité civile du syndicat",
     beneficiaires: "Copropriétaires du 6ᵉ étage (sécurité directe)",
     status: "En cours - Déjà voté (2025–2026)",
@@ -879,7 +991,7 @@ const pptData = [
   {
     id: "ppt-4",
     title: "Mise à jour du règlement de copropriété",
-    nature: "Travaux nécessaires pour entretien immeuble",
+    nature: "Travaux nécessaires",
     owner: "Philippe Monéger",
     valeur: "Mise aux normes, et éviter conflits liés à vétusté du règlement.",
     beneficiaires: "Tous copropriétaires",
@@ -888,7 +1000,7 @@ const pptData = [
   {
     id: "ppt-5",
     title: "Remplacement des chaudières collectives (gaz, installées en 2007)",
-    nature: "Travaux nécessaires pour entretien immeuble",
+    nature: "Travaux nécessaires",
     owner: "Antoine Jean",
     valeur: "Sécurise le chauffage collectif, évite pannes coûteuses, baisse consommation si matériel performant ; prépare transition énergétique (PAC ou CPCU)",
     beneficiaires: "Tous copropriétaires (charges collectives et confort chauffage/eau chaude)",
@@ -897,7 +1009,7 @@ const pptData = [
   {
     id: "ppt-6",
     title: "Équilibrage du réseau chauffage + robinets thermostatiques et tés de réglage (obligatoire avant 2027)",
-    nature: "Travaux nécessaires pour entretien immeuble",
+    nature: "Travaux nécessaires",
     owner: "Yves Ripert",
     valeur: "Régulation fine, baisse charges collectives, conformité légale",
     beneficiaires: "Tous copropriétaires (charges collectives, confort chauffage)",
@@ -906,7 +1018,7 @@ const pptData = [
   {
     id: "ppt-7",
     title: "Diagnostic / traitement (rouille, désembouage) des colonnes d'eau (eau froide + évacuation eaux de pluie)",
-    nature: "Travaux nécessaires pour entretien immeuble",
+    nature: "Travaux nécessaires",
     owner: "Jean-Jacques Chevalier",
     valeur: "",
     beneficiaires: "Tous copropriétaires",
@@ -933,7 +1045,7 @@ const pptData = [
   {
     id: "ppt-10",
     title: "Installation d'une VMC hygro B basse pression",
-    nature: "Travaux nécessaires pour entretien immeuble",
+    nature: "Travaux nécessaires",
     owner: "Antoine Jean",
     valeur: "Améliore qualité d'air, évite pathologies (moisissures), mise en conformité future",
     beneficiaires: "Tous copropriétaires (qualité d'air dans logements)",
@@ -942,7 +1054,7 @@ const pptData = [
   {
     id: "ppt-11",
     title: "Désembouage et calorifugeage des réseaux chauffage + ECS",
-    nature: "Travaux nécessaires pour entretien immeuble",
+    nature: "Travaux nécessaires",
     owner: "Yves Ripert",
     valeur: "Améliore rendement, évite dégradations prématurées, économies maintenance",
     beneficiaires: "Tous copropriétaires (meilleure longévité réseau collectif)",
@@ -951,7 +1063,7 @@ const pptData = [
   {
     id: "ppt-12",
     title: "Ravalement façade Nord",
-    nature: "Travaux nécessaires pour entretien immeuble",
+    nature: "Travaux nécessaires",
     owner: "Jean-Baptiste Petteni",
     valeur: "Préserve l'enveloppe extérieure, améliore isolation, améliore image de l'immeuble côté rue, homogénéité esthétique avec la façade Sud",
     beneficiaires: "Copropriétaires façade Nord (tous étages)",
@@ -960,7 +1072,7 @@ const pptData = [
   {
     id: "ppt-13",
     title: "Étanchéité et isolation des balcons et loggias (SEL, descentes EP) — à mener en même temps que le ravalement façade Nord",
-    nature: "Travaux nécessaires pour entretien immeuble",
+    nature: "Travaux nécessaires",
     owner: "Jean-Baptiste Petteni",
     valeur: "Évite infiltrations dans logements, supprime réparations récurrentes coûteuses",
     beneficiaires: "Copropriétaires avec balcons/loggias (façades Nord & Sud)",
@@ -969,7 +1081,7 @@ const pptData = [
   {
     id: "ppt-14",
     title: "Ravalement façade Sud",
-    nature: "Travaux nécessaires pour entretien immeuble",
+    nature: "Travaux nécessaires",
     owner: "Jean-Baptiste Petteni",
     valeur: "Préserve l'enveloppe, uniformise les réparations déjà votées, évite dégradation du crépi et corrosion des structures métalliques",
     beneficiaires: "Copropriétaires façade Sud (tous étages)",
@@ -978,7 +1090,7 @@ const pptData = [
   {
     id: "ppt-15",
     title: "Audit et peinture des garde-corps façade Sud — à mener en même temps que le ravalement façade Sud",
-    nature: "Travaux nécessaires pour entretien immeuble",
+    nature: "Travaux nécessaires",
     owner: "Jean-Baptiste Petteni",
     valeur: "Préserve garde-corps, évite corrosion/remplacement anticipé, maintient l'esthétique et valorise les biens",
     beneficiaires: "Copropriétaires exposés façade Sud (tous étages)",
@@ -987,7 +1099,7 @@ const pptData = [
   {
     id: "ppt-16",
     title: "Réfection, étanchéité et isolation du toit-terrasse (étanchéité, lanterneaux, acrotères)",
-    nature: "Travaux nécessaires pour entretien immeuble",
+    nature: "Travaux nécessaires",
     owner: "Denis Barbet-Massin",
     valeur: "Supprime risque d'infiltrations lourdes (5–15 k€/logement), améliore confort thermique, baisse charges chauffage",
     beneficiaires: "Copropriétaires derniers étages (6ᵉ) + copropriété entière (charges chauffage)",
@@ -996,7 +1108,7 @@ const pptData = [
   {
     id: "ppt-17",
     title: "Isolation et étanchéité des terrasses inaccessibles et attiques",
-    nature: "Travaux nécessaires pour entretien immeuble",
+    nature: "Travaux nécessaires",
     owner: "Denis Barbet-Massin",
     valeur: "Prévention infiltrations coûteuses, amélioration confort d'été",
     beneficiaires: "Copropriétaires des attiques (5e et 6e étage) + copropriété entière (charges chauffage)",
@@ -1014,7 +1126,7 @@ const pptData = [
   {
     id: "ppt-19",
     title: "Isolation thermique par l'extérieur (ITE) des façades Nord, Est, Ouest",
-    nature: "Travaux nécessaires pour entretien immeuble",
+    nature: "Travaux nécessaires",
     owner: "",
     valeur: "Réduction charges (-35 à -50%), accès subventions, évite ravalements isolés plus coûteux",
     beneficiaires: "Tous copropriétaires (charges collectives), + valorisation façade pour riverains côté rue/jardin",
@@ -1023,7 +1135,7 @@ const pptData = [
   {
     id: "ppt-20",
     title: "Isolation des planchers bas (caves, locaux techniques, parking RDC)",
-    nature: "Travaux nécessaires pour entretien immeuble",
+    nature: "Travaux nécessaires",
     owner: "",
     valeur: "Améliore confort rez-de-chaussée, supprime zones froides, évite condensation/mérule",
     beneficiaires: "Copropriétaires RDC, voire usagers caves/parking",
@@ -1032,7 +1144,7 @@ const pptData = [
   {
     id: "ppt-21",
     title: "Végétalisation partielle toiture / îlot de fraîcheur (écarté par Reanova)",
-    nature: "Travaux nécessaires pour entretien immeuble",
+    nature: "Travaux nécessaires",
     owner: "",
     valeur: "Améliore confort d'été, potentiel bonus subventions locales",
     beneficiaires: "Copropriétaires derniers étages + copropriété (valorisation image)",
@@ -1044,12 +1156,13 @@ const pptData = [
 const NATURE_COLORS = {
   "Travaux de sécurité":                    { bg: "#fdecea", text: "#c0392b", border: "#e57373" },
   "Travaux de confort":                     { bg: "#e8f5e9", text: "#2e7d32", border: "#81c784" },
-  "Travaux nécessaires pour entretien immeuble": { bg: "#e3f2fd", text: "#1565c0", border: "#64b5f6" },
+  "Travaux nécessaires": { bg: "#e3f2fd", text: "#1565c0", border: "#64b5f6" },
 };
 
 // ── PptCard ────────────────────────────────────────────────────────────────────
 function PptCard({ item, accentColor, state, setState }) {
-  const s = state[item.id] || { owner: item.owner, valeur: item.valeur, beneficiaires: item.beneficiaires };
+  const [open, setOpen] = useState(false);
+  const s = state[item.id] || { owner: item.owner, valeur: item.valeur, beneficiaires: item.beneficiaires, budget: "" };
   const update = (patch) => {
     const next = { ...state, [item.id]: { ...s, ...patch } };
     setState(next);
@@ -1059,66 +1172,76 @@ function PptCard({ item, accentColor, state, setState }) {
 
   return (
     <div style={{
-      background: "white", borderRadius: 8, marginBottom: 12,
+      borderRadius: 8, marginBottom: 10, overflow: "hidden",
       border: `1px solid ${accentColor}30`,
       borderLeft: `4px solid ${accentColor}`,
       boxShadow: "0 1px 6px rgba(44,62,80,0.06)",
-      padding: "14px 18px",
     }}>
-      {/* Title + nature tag */}
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
-        <span style={{ fontFamily: "'Playfair Display',Georgia,serif", fontSize: 14, fontWeight: 700, color: C.slate, flex: 1, lineHeight: 1.4 }}>
-          {item.title}
-        </span>
-        <span style={{
-          fontSize: 10, fontWeight: 700, fontFamily: "Inter, system-ui, sans-serif",
-          textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap",
-          background: nc.bg, color: nc.text,
-          border: `1px solid ${nc.border}`,
-          borderRadius: 4, padding: "2px 8px", flexShrink: 0,
-        }}>{item.nature}</span>
+      {/* ── Clickable header ── */}
+      <div
+        onClick={() => setOpen(o => !o)}
+        style={{
+          display: "flex", alignItems: "flex-start", justifyContent: "space-between",
+          gap: 10, padding: "12px 16px", cursor: "pointer",
+          background: open ? "white" : accentColor + "0a",
+          transition: "background 0.15s",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 10, flexWrap: "wrap", flex: 1, minWidth: 0 }}>
+          <span style={{ fontFamily: "'Playfair Display',Georgia,serif", fontSize: 14, fontWeight: 700, color: C.slate, lineHeight: 1.4, flex: 1 }}>
+            {item.title}
+          </span>
+          <span style={{
+            fontSize: 10, fontWeight: 700, fontFamily: "Inter, system-ui, sans-serif",
+            textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap",
+            background: nc.bg, color: nc.text, border: `1px solid ${nc.border}`,
+            borderRadius: 4, padding: "2px 8px", flexShrink: 0,
+          }}>{item.nature}</span>
+          {s.budget && (
+            <span style={{ fontSize: 11, fontWeight: 600, color: accentColor, background: accentColor + "18", borderRadius: 4, padding: "2px 8px", whiteSpace: "nowrap", fontFamily: "Inter, system-ui, sans-serif" }}>
+              {s.budget}
+            </span>
+          )}
+          {s.owner && (
+            <span style={{ fontSize: 11, color: C.steel, fontFamily: "Inter, system-ui, sans-serif", whiteSpace: "nowrap" }}>
+              👤 {s.owner}
+            </span>
+          )}
+        </div>
+        <span style={{ color: C.steel, fontSize: 12, flexShrink: 0, marginTop: 2 }}>{open ? "▲" : "▼"}</span>
       </div>
 
-      {/* Fields grid */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {/* Responsable */}
-        <div>
-          <label style={labelStyle}>👤 Responsable</label>
-          <select
-            value={s.owner}
-            onChange={e => update({ owner: e.target.value })}
-            style={{ ...inputStyle, fontSize: 12, padding: "6px 10px", cursor: "pointer", appearance: "auto" }}
-          >
-            <option value="">— Non assigné —</option>
-            {MEMBERS.map((m, i) => <option key={i} value={m.name}>{m.name}</option>)}
-            <option value="N/A">N/A</option>
-          </select>
+      {/* ── Expandable body ── */}
+      {open && (
+        <div style={{ padding: "14px 16px", background: C.cream, borderTop: `1px solid ${accentColor}20`, display: "flex", flexDirection: "column", gap: 12 }}>
+          <div>
+            <label style={labelStyle}>👤 Responsable</label>
+            <select value={s.owner} onChange={e => update({ owner: e.target.value })}
+              style={{ ...inputStyle, fontSize: 12, padding: "6px 10px", cursor: "pointer", appearance: "auto" }}>
+              <option value="">— Non assigné —</option>
+              {MEMBERS.map((m, i) => <option key={i} value={m.name}>{m.name}</option>)}
+              <option value="N/A">N/A</option>
+            </select>
+          </div>
+          <div>
+            <label style={labelStyle}>💰 Budget estimé (TTC)</label>
+            <input value={s.budget || ""} onChange={e => update({ budget: e.target.value })}
+              style={{ ...inputStyle, fontSize: 12, padding: "6px 10px" }} placeholder="ex : 25 000 €" />
+          </div>
+          <div>
+            <label style={labelStyle}>💎 Valeur pour la copropriété</label>
+            <textarea value={s.valeur} onChange={e => update({ valeur: e.target.value })}
+              rows={3} style={{ ...inputStyle, fontSize: 12, resize: "vertical", padding: "6px 10px" }}
+              placeholder="Valeur apportée…" />
+          </div>
+          <div>
+            <label style={labelStyle}>👥 Bénéficiaires</label>
+            <textarea value={s.beneficiaires} onChange={e => update({ beneficiaires: e.target.value })}
+              rows={3} style={{ ...inputStyle, fontSize: 12, resize: "vertical", padding: "6px 10px" }}
+              placeholder="Copropriétaires concernés…" />
+          </div>
         </div>
-
-        {/* Valeur */}
-        <div>
-          <label style={labelStyle}>💎 Valeur pour la copropriété</label>
-          <textarea
-            value={s.valeur}
-            onChange={e => update({ valeur: e.target.value })}
-            rows={3}
-            style={{ ...inputStyle, fontSize: 12, resize: "vertical", padding: "6px 10px" }}
-            placeholder="Valeur apportée…"
-          />
-        </div>
-
-        {/* Bénéficiaires */}
-        <div>
-          <label style={labelStyle}>👥 Bénéficiaires</label>
-          <textarea
-            value={s.beneficiaires}
-            onChange={e => update({ beneficiaires: e.target.value })}
-            rows={3}
-            style={{ ...inputStyle, fontSize: 12, resize: "vertical", padding: "6px 10px" }}
-            placeholder="Copropriétaires concernés…"
-          />
-        </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -1159,8 +1282,8 @@ function PptSection({ title, icon, color, items, state, setState }) {
 const TABS = [
   { id: "accueil",       icon: "🏛",  label: "Accueil",            color: C.copper },
   { id: "interventions", icon: "🔧",  label: "Interventions",      color: "#c0392b" },
-  { id: "court-terme",   icon: "⚡",  label: "Actions court terme",color: "#e07b39" },
-  { id: "longterm",      icon: "🏗",  label: "Projets long terme", color: C.slate },
+  { id: "court-terme",   icon: "⚡",  label: "Actions urgentes",   color: "#e07b39" },
+  { id: "longterm",      icon: "🏗",  label: "Projets en réflexion 2026-2027", color: C.slate },
   { id: "ppt",           icon: "📋",  label: "Plan pluriannuel",   color: C.steel },
 ];
 
@@ -1196,7 +1319,7 @@ function Portal() {
       if (saved) return JSON.parse(saved);
     } catch {}
     // Build default state from pptData
-    return Object.fromEntries(pptData.map(p => [p.id, { owner: p.owner, valeur: p.valeur, beneficiaires: p.beneficiaires }]));
+    return Object.fromEntries(pptData.map(p => [p.id, { owner: p.owner, valeur: p.valeur, beneficiaires: p.beneficiaires, budget: p.budget || "" }]));
   });
   const setPptState = (next) => {
     setPptStateRaw(next);
@@ -1233,6 +1356,12 @@ function Portal() {
 
   const mkUpdater = (list, setList) => (updated) =>
     setList(list.map(x => x.id === updated.id ? updated : x));
+
+  const mkDeleter = (list, setList, lsKey) => (id) => {
+    const next = list.filter(x => x.id !== id);
+    setList(next);
+    if (lsKey) lsSetRaw(lsKey, next);
+  };
 
   return (
     <div style={{ minHeight: "100vh", position: "relative", fontFamily: "Inter, system-ui, sans-serif" }}>
@@ -1315,6 +1444,7 @@ function Portal() {
               <SectionBlock title="Sinistres" icon="🚨" color="#c0392b">
                 {sinistres.map(p => (
                   <ProjectCard key={p.id} project={p} onChange={mkUpdater(sinistres, setSinistres)}
+                    onDelete={() => mkDeleter(sinistres, setSinistres, "cs-sinistres")(p.id)}
                     accentColor="#c0392b" statusLabel="Sinistre ouvert" />
                 ))}
                 <InlineAdder color="#c0392b" buttonLabel="+ Déclarer un sinistre"
@@ -1329,6 +1459,7 @@ function Portal() {
                 </p>
                 {agVoted.map(p => (
                   <ProjectCard key={p.id} project={p} onChange={mkUpdater(agVoted, setAgVoted)}
+                    onDelete={() => mkDeleter(agVoted, setAgVoted, "cs-ag-voted")(p.id)}
                     accentColor="#5d8a3c" statusLabel="En cours" showBudget showResolution />
                 ))}
                 <InlineAdder color="#5d8a3c" buttonLabel="+ Ajouter un chantier voté"
@@ -1347,6 +1478,7 @@ function Portal() {
                 </p>
                 {partiesCommunes.map(p => (
                   <ProjectCard key={p.id} project={p} onChange={mkUpdater(partiesCommunes, setPartiesCommunes)}
+                    onDelete={() => mkDeleter(partiesCommunes, setPartiesCommunes, "cs-parties")(p.id)}
                     accentColor="#7b5ea7" statusLabel="En cours" />
                 ))}
                 <InlineAdder color="#7b5ea7" buttonLabel="+ Signaler un problème"
@@ -1361,7 +1493,8 @@ function Portal() {
                 </p>
                 {csPreroga.map(p => (
                   <ProjectCard key={p.id} project={p} onChange={mkUpdater(csPreroga, setCsPreroga)}
-                    accentColor={C.copper} statusLabel="En cours" />
+                    onDelete={() => mkDeleter(csPreroga, setCsPreroga, "cs-preroga")(p.id)}
+                    accentColor={C.copper} statusLabel="En cours" showCost />
                 ))}
                 <InlineAdder color={C.copper} buttonLabel="+ Ajouter une action CS"
                   fields={[{ key: "title", label: "Titre de l'action", placeholder: "ex : Remplacement serrure local poubelles" }]}
@@ -1379,15 +1512,16 @@ function Portal() {
                   </div>
                 )}
                 {travIndiv.map(p => (
-                  <ProjectCard key={p.id} project={p} onChange={mkUpdater(travIndiv, setTravIndiv)}
-                    accentColor={C.steel} statusLabel="À soumettre en AG" />
+                  <TravIndivCard key={p.id} project={p} onChange={mkUpdater(travIndiv, setTravIndiv)}
+                    onDelete={() => mkDeleter(travIndiv, setTravIndiv, "cs-travindiv")(p.id)} />
                 ))}
                 <InlineAdder color={C.steel} buttonLabel="+ Ajouter une demande"
                   fields={[
-                    { key: "title",   label: "Titre de la demande",        placeholder: "ex : Création d'une porte palière — appartement 12" },
-                    { key: "comment", label: "Description (optionnel)",     placeholder: "Contexte, copropriétaire concerné…", multiline: true },
+                    { key: "title",     label: "Titre de la demande",        placeholder: "ex : Création d'une porte palière — appartement 12" },
+                    { key: "demandeur", label: "Copropriétaire demandeur",   placeholder: "Nom du copropriétaire" },
+                    { key: "comment",   label: "Description (optionnel)",     placeholder: "Nature des travaux, localisation…", multiline: true },
                   ]}
-                  onAdd={v => setTravIndiv([...travIndiv, { id: Date.now(), title: v.title, owner: "", comment: v.comment || "", files: [], steps: [] }])}
+                  onAdd={v => setTravIndiv([...travIndiv, { id: Date.now(), title: v.title, demandeur: v.demandeur || "", comment: v.comment || "", files: [] }])}
                 />
               </SectionBlock>
             </div>
@@ -1397,25 +1531,23 @@ function Portal() {
           {tab === "court-terme" && (
             <div>
               <h2 style={{ fontFamily: "'Playfair Display',Georgia,serif", fontSize: 20, color: C.slate, marginTop: 0, borderBottom: `2px solid #e07b39`, paddingBottom: 6, marginBottom: 24 }}>
-                ⚡ Actions court terme
+                ⚡ Actions urgentes
               </h2>
-
-              <SectionBlock title="Actions urgentes" icon="🎯" color="#e07b39">
-                <p style={{ fontSize: 12, color: C.steel, marginTop: -6, marginBottom: 12 }}>
-                  Sujets à traiter en priorité dans les semaines à venir, hors chantiers et sinistres.
-                </p>
-                {urgentActions.map(p => (
-                  <ProjectCard key={p.id} project={p} onChange={mkUpdater(urgentActions, setUrgentActions)}
-                    accentColor="#e07b39" statusLabel="Urgent" />
-                ))}
-                <InlineAdder color="#e07b39" buttonLabel="+ Ajouter une action urgente"
-                  fields={[
-                    { key: "title",   label: "Titre de l'action",      placeholder: "ex : Relancer Atrium sur…" },
-                    { key: "comment", label: "Contexte (optionnel)",    placeholder: "Détails, enjeux…", multiline: true },
-                  ]}
-                  onAdd={v => setUrgentActions([...urgentActions, { id: Date.now(), title: v.title, owner: "", comment: v.comment || "", files: [], steps: [] }])}
-                />
-              </SectionBlock>
+              <p style={{ fontSize: 12, color: C.steel, marginBottom: 20 }}>
+                Sujets à traiter en priorité dans les semaines à venir, hors chantiers et sinistres.
+              </p>
+              {urgentActions.map(p => (
+                <ProjectCard key={p.id} project={p} onChange={mkUpdater(urgentActions, setUrgentActions)}
+                  onDelete={() => mkDeleter(urgentActions, setUrgentActions, "cs-urgent")(p.id)}
+                  accentColor="#e07b39" statusLabel="Urgent" />
+              ))}
+              <InlineAdder color="#e07b39" buttonLabel="+ Ajouter une action urgente"
+                fields={[
+                  { key: "title",   label: "Titre de l'action",   placeholder: "ex : Relancer Atrium sur…" },
+                  { key: "comment", label: "Contexte (optionnel)", placeholder: "Détails, enjeux…", multiline: true },
+                ]}
+                onAdd={v => setUrgentActions([...urgentActions, { id: Date.now(), title: v.title, owner: "", comment: v.comment || "", files: [], steps: [] }])}
+              />
             </div>
           )}
 
@@ -1423,13 +1555,17 @@ function Portal() {
           {tab === "longterm" && (
             <div>
               <h2 style={{ fontFamily: "'Playfair Display',Georgia,serif", fontSize: 20, color: C.slate, marginTop: 0, borderBottom: `2px solid ${C.slate}`, paddingBottom: 6, marginBottom: 24 }}>
-                🏗 Projets à moyen et long terme
+                🏗 Projets en réflexion 2026-2027
               </h2>
               <p style={{ fontSize: 13, color: C.steel, marginBottom: 20 }}>
                 Projets structurants avec groupe de travail nominé. Le responsable principal est indiqué par ★.
               </p>
               {longterm.map(p => (
-                <LongTermCard key={p.id} project={p} onChange={updateLongterm} />
+                <LongTermCard key={p.id} project={p} onChange={updateLongterm}
+                  onDelete={() => {
+                    try { localStorage.removeItem(`lt-project-${p.id}`); } catch {}
+                    setLongterm(prev => prev.filter(x => x.id !== p.id));
+                  }} />
               ))}
               <InlineAdder color={C.slate} buttonLabel="+ Ajouter un projet"
                 fields={[{ key: "title", label: "Titre du projet", placeholder: "ex : Réfection de l'ascenseur" }]}
@@ -1452,24 +1588,17 @@ function Portal() {
                 Les responsables et champs texte sont modifiables.
               </p>
               <PptSection
-                title="Fait — déjà voté (2025–2026)"
+                title="Fait"
                 color="#4caf50"
                 icon="✅"
                 items={pptData.filter(p => p.status === "Fait - Déjà voté (2025–2026)")}
                 state={pptState} setState={setPptState}
               />
               <PptSection
-                title="En cours — déjà voté (2025–2026)"
+                title="En cours"
                 color="#8bc34a"
                 icon="🔨"
-                items={pptData.filter(p => p.status === "En cours - Déjà voté (2025–2026)")}
-                state={pptState} setState={setPptState}
-              />
-              <PptSection
-                title="Individuel"
-                color={C.copper}
-                icon="🏠"
-                items={pptData.filter(p => p.status === "Individuel")}
+                items={pptData.filter(p => p.status === "En cours - Déjà voté (2025–2026)" || p.status === "Individuel")}
                 state={pptState} setState={setPptState}
               />
               <PptSection
@@ -1487,24 +1616,10 @@ function Portal() {
                 state={pptState} setState={setPptState}
               />
               <PptSection
-                title="Long terme (2030–2033)"
+                title="Long terme (2030 et au-delà)"
                 color="#5c6bc0"
                 icon="🏗"
-                items={pptData.filter(p => p.status === "Long terme (2030–2033)")}
-                state={pptState} setState={setPptState}
-              />
-              <PptSection
-                title="Très long terme (après 2033)"
-                color="#7b5ea7"
-                icon="🔮"
-                items={pptData.filter(p => p.status === "Très long terme (après 2033)")}
-                state={pptState} setState={setPptState}
-              />
-              <PptSection
-                title="À sortir du PPT"
-                color={C.steel}
-                icon="🗂"
-                items={pptData.filter(p => p.status === "A sortir du PPT")}
+                items={pptData.filter(p => p.status === "Long terme (2030–2033)" || p.status === "Très long terme (après 2033)")}
                 state={pptState} setState={setPptState}
               />
             </div>
