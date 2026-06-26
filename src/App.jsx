@@ -1165,7 +1165,7 @@ const TABS = [
 ];
 
 // ── APP ────────────────────────────────────────────────────────────────────────
-export default function Portal() {
+function Portal() {
   const [tab, setTab] = useState("accueil");
 
   // ── Persisted list states (onglets 2 & 3) ────────────────────────────────────
@@ -1521,7 +1521,7 @@ export default function Portal() {
 }
 
 // ── Password (change this to your chosen password) ────────────────────────────
-const PORTAL_PASSWORD = "Javel";
+const PORTAL_PASSWORD = "Javel2026!";
 const SESSION_KEY = "cs-javel-auth";
 
 // ── Login screen ──────────────────────────────────────────────────────────────
