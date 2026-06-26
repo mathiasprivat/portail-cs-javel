@@ -1080,7 +1080,7 @@ function PptCard({ item, accentColor, state, setState }) {
       </div>
 
       {/* Fields grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {/* Responsable */}
         <div>
           <label style={labelStyle}>👤 Responsable</label>
