@@ -195,7 +195,90 @@ function LinksManager() {
   );
 }
 
-// ── Building facade ────────────────────────────────────────────────────────────
+// ── Contacts manager (Numéros utiles) ────────────────────────────────────────
+function ContactsManager() {
+  const [contacts, setContacts] = useState([]);
+  const [editId, setEditId] = useState(null);
+
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, "contacts"), snap => {
+      setContacts(snap.docs.map(d => d.data()).sort((a, b) => a.id - b.id));
+    });
+    return () => unsub();
+  }, []);
+
+  const saveContact = (item) => fbSet("contacts", item.id, item);
+  const deleteContact = (id) => fbDelete("contacts", id);
+
+  return (
+    <div>
+      {contacts.length === 0 && (
+        <div style={{ background: C.lightStone, borderRadius: 8, padding: "12px 16px", fontSize: 13, color: C.steel, fontStyle: "italic", marginBottom: 12 }}>
+          Aucun contact enregistré.
+        </div>
+      )}
+      {contacts.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
+          {contacts.map(c => (
+            <div key={c.id} style={{ background: "white", borderRadius: 6, padding: "10px 14px", border: `1px solid ${C.lightStone}`, boxShadow: "0 1px 4px rgba(44,62,80,0.05)" }}>
+              {editId === c.id ? (
+                <ContactEditForm contact={c} onSave={item => { saveContact(item); setEditId(null); }} onCancel={() => setEditId(null)} />
+              ) : (
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontFamily: "Inter, system-ui, sans-serif", fontSize: 14, fontWeight: 600, color: C.slate }}>{c.nom}</div>
+                    {c.fonction && <div style={{ fontSize: 12, color: C.copper, fontFamily: "Inter, system-ui, sans-serif" }}>{c.fonction}</div>}
+                    <div style={{ display: "flex", gap: 16, marginTop: 4 }}>
+                      {c.numero && <span style={{ fontSize: 12, color: C.steel, fontFamily: "Inter, system-ui, sans-serif" }}>📞 {c.numero}</span>}
+                      {c.email && <span style={{ fontSize: 12, color: C.steel, fontFamily: "Inter, system-ui, sans-serif" }}>✉️ {c.email}</span>}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <span onClick={() => setEditId(c.id)} style={{ cursor: "pointer", fontSize: 13, opacity: 0.4 }}
+                      onMouseEnter={e => e.currentTarget.style.opacity = "0.9"}
+                      onMouseLeave={e => e.currentTarget.style.opacity = "0.4"}>✏️</span>
+                    <span onClick={() => deleteContact(c.id)} style={{ cursor: "pointer", fontSize: 14, opacity: 0.4, color: C.red }}
+                      onMouseEnter={e => e.currentTarget.style.opacity = "0.9"}
+                      onMouseLeave={e => e.currentTarget.style.opacity = "0.4"}>×</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      <InlineAdder
+        color="#5c6bc0"
+        buttonLabel="+ Ajouter un contact"
+        fields={[
+          { key: "nom",      label: "Nom",      placeholder: "ex : Nathalie Leroy" },
+          { key: "fonction", label: "Fonction", placeholder: "ex : Gestionnaire Atrium" },
+          { key: "numero",   label: "Téléphone",placeholder: "ex : 01 45 00 00 00" },
+          { key: "email",    label: "Email",     placeholder: "ex : n.leroy@atrium.fr" },
+        ]}
+        onAdd={v => saveContact({ id: Date.now(), nom: v.nom, fonction: v.fonction || "", numero: v.numero || "", email: v.email || "" })}
+      />
+    </div>
+  );
+}
+
+function ContactEditForm({ contact, onSave, onCancel }) {
+  const [form, setForm] = useState({ ...contact });
+  return (
+    <div>
+      {["nom","fonction","numero","email"].map(k => (
+        <div key={k} style={{ marginBottom: 8 }}>
+          <label style={labelStyle}>{k}</label>
+          <input value={form[k] || ""} onChange={e => setForm({ ...form, [k]: e.target.value })} style={{ ...inputStyle, fontSize: 13, padding: "5px 10px" }} />
+        </div>
+      ))}
+      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+        <button onClick={() => onSave(form)} style={{ background: C.slate, color: "white", border: "none", borderRadius: 4, padding: "6px 16px", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>Enregistrer</button>
+        <button onClick={onCancel} style={{ background: "none", border: `1px solid ${C.lightStone}`, borderRadius: 4, padding: "6px 12px", fontSize: 12, cursor: "pointer", color: C.steel }}>Annuler</button>
+      </div>
+    </div>
+  );
+}
 function FacadeBackground() {
   const windows = [];
   for (let row = 0; row < 8; row++)
@@ -584,8 +667,17 @@ function LongTermCard({ project, onChange, onDelete }) {
     }
   };
 
+  const statusBadge = project.status === "valide"
+    ? <span style={{ fontSize: 10, fontWeight: 700, fontFamily: "Inter, system-ui, sans-serif", background: "#e8f5e9", color: "#2e7d32", border: "1px solid #a5d6a7", borderRadius: 4, padding: "2px 7px", whiteSpace: "nowrap" }}>✅ Validé CS</span>
+    : <span style={{ fontSize: 10, fontWeight: 700, fontFamily: "Inter, system-ui, sans-serif", background: "#fdecea", color: "#c0392b", border: "1px solid #ef9a9a", borderRadius: 4, padding: "2px 7px", whiteSpace: "nowrap" }}>❌ Non validé</span>;
+
   const leadNames = project.members.filter(m => m.lead).map(m => m.name).join(", ");
-  const extra = leadNames ? <span style={{ fontSize: 12, color: C.slate, fontFamily: "Inter, system-ui, sans-serif" }}>★ {leadNames}</span> : null;
+  const extra = (
+    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      {statusBadge}
+      {leadNames && <span style={{ fontSize: 12, color: C.slate, fontFamily: "Inter, system-ui, sans-serif" }}>★ {leadNames}</span>}
+    </div>
+  );
 
   return (
     <div style={{ border: `1px solid #7F8C8D40`, borderRadius: 8, marginBottom: 12, overflow: "hidden", boxShadow: "0 2px 8px rgba(44,62,80,0.07)" }}>
@@ -603,6 +695,24 @@ function LongTermCard({ project, onChange, onDelete }) {
       {open && (
         <div style={{ padding: "16px 20px", background: C.cream }}>
           <MemberPicker project={project} onChange={onChange} />
+
+          {/* Statut CS */}
+          <div style={{ marginBottom: 14 }}>
+            <label style={labelStyle}>📊 Statut de validation CS</label>
+            <select
+              value={project.status || "non-valide"}
+              onChange={e => onChange({ ...project, status: e.target.value })}
+              style={{
+                ...inputStyle, cursor: "pointer", appearance: "auto",
+                fontWeight: 600,
+                color: (project.status === "valide") ? "#2e7d32" : "#c0392b",
+                background: (project.status === "valide") ? "#e8f5e9" : "#fdecea",
+              }}
+            >
+              <option value="non-valide">❌ Non validé par le CS</option>
+              <option value="valide">✅ Validé par le CS</option>
+            </select>
+          </div>
 
           <div style={{ marginBottom: 14 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
@@ -962,25 +1072,25 @@ const INIT_LONGTERM = [
     id: 1, title: "Remplacement des chaudières",
     members: [{ name: "Antoine Jean", lead: true }, { name: "Jean-Jacques Chevalier", lead: false }, { name: "Jean-Baptiste Petteni", lead: false }],
     comment: "Trois options à l'étude : (1) raccordement RCU/CPCU, (2) pompe à chaleur collective, (3) remplacement chaudières gaz. Études DELGY en cours. Coût annuel actuel gaz : ~26 838 € TTC ; simulation RCU : ~28 984 € TTC.",
-    files: [],
+    files: [], status: "non-valide",
   },
   {
     id: 2, title: "Mise à jour du règlement de copropriété",
     members: [{ name: "Philippe Monéger", lead: true }],
     comment: "Règlement actuel date de 1964. Mise en conformité nécessaire.",
-    files: [],
+    files: [], status: "non-valide",
   },
   {
     id: 3, title: "Équilibrage réseau chauffage + robinets thermostatiques",
     members: [{ name: "Yves Ripert", lead: true }],
     comment: "Obligation réglementaire avant fin 2027. Pose de robinets thermostatiques et tés de réglage sur l'ensemble du réseau.",
-    files: [],
+    files: [], status: "non-valide",
   },
   {
     id: 4, title: "Suivi comptabilité et réflexions financières",
     members: [{ name: "Yves Ripert", lead: true }, { name: "Jean-Baptiste Petteni", lead: false }],
     comment: "",
-    files: [],
+    files: [], status: "non-valide",
   },
 ];
 
@@ -1271,7 +1381,76 @@ function PptCard({ item, accentColor, state, setState }) {
   );
 }
 
-// ── PptSection ─────────────────────────────────────────────────────────────────
+// ── Draggable PPT section (drag & drop between sections) ─────────────────────
+function DraggablePptSection({ section, items, pptState, setPptState, allSections, onMove }) {
+  const [open, setOpen] = useState(true);
+  const [dragOver, setDragOver] = useState(false);
+
+  const handleDragOver = (e) => { e.preventDefault(); setDragOver(true); };
+  const handleDragLeave = () => setDragOver(false);
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setDragOver(false);
+    const itemId = e.dataTransfer.getData("ppt-item-id");
+    if (itemId) onMove(itemId, section.key);
+  };
+
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <div
+        onClick={() => setOpen(o => !o)}
+        style={{
+          display: "flex", alignItems: "center", gap: 10, cursor: "pointer",
+          padding: "10px 14px", borderRadius: 8,
+          background: dragOver ? section.color + "30" : section.color + "18",
+          border: `${dragOver ? 2 : 1}px solid ${dragOver ? section.color : section.color + "40"}`,
+          marginBottom: open ? 10 : 0,
+          userSelect: "none", transition: "all 0.15s",
+        }}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        <span style={{ fontSize: 16 }}>{section.icon}</span>
+        <span style={{ fontFamily: "'Playfair Display',Georgia,serif", fontSize: 15, fontWeight: 700, color: C.slate, flex: 1 }}>{section.label}</span>
+        {dragOver && <span style={{ fontSize: 11, color: section.color, fontWeight: 700, fontFamily: "Inter, system-ui, sans-serif" }}>Déposer ici</span>}
+        <span style={{ background: section.color, color: "white", borderRadius: 12, padding: "1px 9px", fontSize: 11, fontWeight: 700, fontFamily: "Inter, system-ui, sans-serif" }}>{items.length}</span>
+        <span style={{ color: C.steel, fontSize: 12 }}>{open ? "▲" : "▼"}</span>
+      </div>
+      {open && items.map(item => (
+        <div
+          key={item.id}
+          draggable
+          onDragStart={e => {
+            e.dataTransfer.setData("ppt-item-id", item.id);
+            e.dataTransfer.effectAllowed = "move";
+          }}
+          style={{ cursor: "grab" }}
+        >
+          <PptCard item={item} accentColor={section.color} state={pptState} setState={setPptState} />
+        </div>
+      ))}
+      {open && items.length === 0 && (
+        <div style={{
+          border: `2px dashed ${section.color}40`, borderRadius: 8,
+          padding: "20px", textAlign: "center",
+          fontSize: 12, color: C.steel, fontStyle: "italic",
+          fontFamily: "Inter, system-ui, sans-serif",
+          background: dragOver ? section.color + "10" : "transparent",
+          transition: "background 0.15s",
+        }}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          Glissez une fiche ici
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── PPT section (legacy — kept for reference) ─────────────────────────────────
 function PptSection({ title, icon, color, items, state, setState }) {
   const [open, setOpen] = useState(true);
   if (items.length === 0) return null;
@@ -1305,11 +1484,10 @@ function PptSection({ title, icon, color, items, state, setState }) {
 }
 
 const TABS = [
-  { id: "accueil",       icon: "🏛",  label: "Accueil",            color: C.copper },
-  { id: "interventions", icon: "🔧",  label: "Interventions",      color: "#c0392b" },
-  { id: "court-terme",   icon: "⚡",  label: "Actions urgentes",   color: "#e07b39" },
-  { id: "longterm",      icon: "🏗",  label: "Projets en réflexion 2026-2027", color: C.slate },
-  { id: "ppt",           icon: "📋",  label: "Plan pluriannuel",   color: C.steel },
+  { id: "accueil",    icon: "🏛",  label: "Accueil",             color: C.copper },
+  { id: "actualites", icon: "📢",  label: "Actualités",          color: "#c0392b" },
+  { id: "ag",         icon: "🗳",  label: "Prochaine AG 2026-2027", color: "#5d8a3c" },
+  { id: "ppt",        icon: "📋",  label: "Plan pluriannuel",    color: C.steel },
 ];
 
 // ── APP ────────────────────────────────────────────────────────────────────────
@@ -1328,6 +1506,47 @@ function Portal() {
   const [pptState,        setPptStateRaw]     = useState(() =>
     Object.fromEntries(pptData.map(p => [p.id, { owner: p.owner, valeur: p.valeur, beneficiaires: p.beneficiaires, budget: p.budget || "" }]))
   );
+  // PPT drag & drop sections state — tracks which section each item belongs to
+  // Key: ppt item id, Value: section key
+  const PPT_SECTIONS = [
+    { key: "fait",        label: "Fait",                        color: "#4caf50", icon: "✅", defaultStatus: "Fait - Déjà voté (2025–2026)" },
+    { key: "en-cours",    label: "En cours",                    color: "#8bc34a", icon: "🔨", defaultStatus: "En cours - Déjà voté (2025–2026)" },
+    { key: "reflexion",   label: "Projets en réflexion (2026–2027)", color: "#e07b39", icon: "💡", defaultStatus: "Projets en réflexion (2026-2027)" },
+    { key: "moyen",       label: "Moyen terme (2027–2029)",     color: C.slate,   icon: "🔭", defaultStatus: "Moyen terme (2027–2029)" },
+    { key: "long",        label: "Long terme (2030 et au-delà)", color: "#5c6bc0", icon: "🏗", defaultStatus: "Long terme (2030–2033)" },
+  ];
+
+  // Initialize pptSections from pptData status
+  const initPptSections = () => {
+    const map = {};
+    pptData.forEach(item => {
+      const sec = PPT_SECTIONS.find(s =>
+        item.status === s.defaultStatus ||
+        (s.key === "long" && (item.status === "Long terme (2030–2033)" || item.status === "Très long terme (après 2033)")) ||
+        (s.key === "en-cours" && item.status === "Individuel")
+      );
+      map[item.id] = sec ? sec.key : "reflexion";
+    });
+    return map;
+  };
+
+  const [pptSections, setPptSectionsRaw] = useState(() => {
+    try {
+      const saved = localStorage.getItem("ppt-sections");
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return initPptSections();
+  });
+
+  const setPptSections = (next) => {
+    setPptSectionsRaw(next);
+    try { localStorage.setItem("ppt-sections", JSON.stringify(next)); } catch {}
+  };
+
+  const movePptItem = (itemId, targetSectionKey) => {
+    setPptSections({ ...pptSections, [itemId]: targetSectionKey });
+  };
+
   const [agenda, setAgenda] = useState({
     date: "Octobre–Novembre 2026 (date à fixer)",
     lieu: "Locaux Atrium Gestion — 55 rue Fondary, 75015 Paris (+ Zoom)",
@@ -1453,9 +1672,7 @@ function Portal() {
               </h2>
               <p style={{ fontSize: 14, color: C.slate, lineHeight: 1.7, marginBottom: 24 }}>
                 Ce portail est l'espace de travail partagé du Conseil Syndical de la copropriété du{" "}
-                <strong>94-96 rue de Javel, 75015 Paris</strong>. Il centralise le suivi des interventions,
-                des travaux votés, et des projets à long terme. Le Conseil Syndical est composé de sept membres
-                élus pour la période <strong>2026–2027</strong>.
+                <strong>94-96 rue de Javel, 75015 Paris</strong>. Mandat <strong>2026–2027</strong>.
               </p>
 
               <h3 style={{ fontFamily: "'Playfair Display',Georgia,serif", fontSize: 16, color: C.slate, marginBottom: 14 }}>Membres du Conseil Syndical</h3>
@@ -1483,18 +1700,41 @@ function Portal() {
               </div>
 
               <h3 style={{ fontFamily: "'Playfair Display',Georgia,serif", fontSize: 16, color: C.slate, marginBottom: 12, borderTop: `1px solid ${C.lightStone}`, paddingTop: 20 }}>
+                📞 Numéros utiles
+              </h3>
+              <ContactsManager />
+
+              <h3 style={{ fontFamily: "'Playfair Display',Georgia,serif", fontSize: 16, color: C.slate, marginBottom: 12, borderTop: `1px solid ${C.lightStone}`, paddingTop: 20, marginTop: 28 }}>
                 🔗 Liens utiles
               </h3>
               <LinksManager />
             </div>
           )}
 
-          {/* ── TAB 2 : Interventions ── */}
-          {tab === "interventions" && (
+          {/* ── TAB 2 : Actualités ── */}
+          {tab === "actualites" && (
             <div>
               <h2 style={{ fontFamily: "'Playfair Display',Georgia,serif", fontSize: 20, color: C.slate, marginTop: 0, borderBottom: `2px solid #c0392b`, paddingBottom: 6, marginBottom: 24 }}>
-                🔧 Interventions & suivi courant
+                📢 Actualités
               </h2>
+
+              <SectionBlock title="Sujets urgents du CS" icon="⚡" color="#e07b39">
+                <p style={{ fontSize: 12, color: C.steel, marginTop: -6, marginBottom: 12 }}>
+                  Sujets à traiter en priorité dans les semaines à venir, hors chantiers et sinistres.
+                </p>
+                {urgentActions.map(p => (
+                  <ProjectCard key={p.id} project={p} onChange={mkUpdater("urgent")}
+                    onDelete={() => mkDeleter("urgent")(p.id)}
+                    accentColor="#e07b39" statusLabel="Urgent" />
+                ))}
+                <InlineAdder color="#e07b39" buttonLabel="+ Ajouter une action urgente"
+                  fields={[
+                    { key: "title",   label: "Titre de l'action",   placeholder: "ex : Relancer Atrium sur…" },
+                    { key: "comment", label: "Contexte (optionnel)", placeholder: "Détails, enjeux…", multiline: true },
+                  ]}
+                  onAdd={v => { const item = { id: Date.now(), title: v.title, owner: "", comment: v.comment || "", files: [], steps: [] }; saveItem("urgent", item); }}
+                />
+              </SectionBlock>
 
               <SectionBlock title="Sinistres" icon="🚨" color="#c0392b">
                 {sinistres.map(p => (
@@ -1556,10 +1796,36 @@ function Portal() {
                   onAdd={v => { const item = { id: Date.now(), title: v.title, owner: "", cost: "", comment: "", files: [], steps: [] }; saveItem("preroga", item); }}
                 />
               </SectionBlock>
+            </div>
+          )}
+
+          {/* ── TAB 3 : Prochaine AG 2026-2027 ── */}
+          {tab === "ag" && (
+            <div>
+              <h2 style={{ fontFamily: "'Playfair Display',Georgia,serif", fontSize: 20, color: C.slate, marginTop: 0, borderBottom: `2px solid #5d8a3c`, paddingBottom: 6, marginBottom: 24 }}>
+                🗳 Prochaine AG 2026-2027
+              </h2>
+
+              <SectionBlock title="Résolutions communes" icon="📋" color="#5d8a3c">
+                <p style={{ fontSize: 12, color: C.steel, marginTop: -6, marginBottom: 12 }}>
+                  Projets et résolutions à soumettre au vote de l'Assemblée Générale. Statut de validation par le CS.
+                </p>
+                {longterm.map(p => (
+                  <LongTermCard key={p.id} project={p} onChange={updateLongterm}
+                    onDelete={() => removeItem("longterm", p.id)} />
+                ))}
+                <InlineAdder color="#5d8a3c" buttonLabel="+ Ajouter une résolution"
+                  fields={[{ key: "title", label: "Titre de la résolution", placeholder: "ex : Remplacement chaudières — option PAC" }]}
+                  onAdd={v => {
+                    const np = { id: Date.now(), title: v.title, members: [], comment: "", files: [], status: "non-valide" };
+                    updateLongterm(np);
+                  }}
+                />
+              </SectionBlock>
 
               <SectionBlock title="Travaux individuels nécessitant un vote en AG" icon="🗺" color={C.steel}>
                 <p style={{ fontSize: 12, color: C.steel, marginTop: -6, marginBottom: 12 }}>
-                  Demandes de copropriétaires pour des travaux privatifs affectant les parties communes ou la structure du bâtiment — à soumettre à l'AG.
+                  Demandes de copropriétaires pour des travaux privatifs affectant les parties communes ou la structure du bâtiment.
                 </p>
                 {travIndiv.length === 0 && (
                   <div style={{ background: C.lightStone, borderRadius: 6, padding: "12px 16px", fontSize: 13, color: C.steel, fontStyle: "italic", marginBottom: 10 }}>
@@ -1582,99 +1848,29 @@ function Portal() {
             </div>
           )}
 
-          {/* ── TAB 3 : Actions court terme ── */}
-          {tab === "court-terme" && (
-            <div>
-              <h2 style={{ fontFamily: "'Playfair Display',Georgia,serif", fontSize: 20, color: C.slate, marginTop: 0, borderBottom: `2px solid #e07b39`, paddingBottom: 6, marginBottom: 24 }}>
-                ⚡ Actions urgentes
-              </h2>
-              <p style={{ fontSize: 12, color: C.steel, marginBottom: 20 }}>
-                Sujets à traiter en priorité dans les semaines à venir, hors chantiers et sinistres.
-              </p>
-              {urgentActions.map(p => (
-                <ProjectCard key={p.id} project={p} onChange={mkUpdater("urgent")}
-                  onDelete={() => mkDeleter("urgent")(p.id)}
-                  accentColor="#e07b39" statusLabel="Urgent" />
-              ))}
-              <InlineAdder color="#e07b39" buttonLabel="+ Ajouter une action urgente"
-                fields={[
-                  { key: "title",   label: "Titre de l'action",   placeholder: "ex : Relancer Atrium sur…" },
-                  { key: "comment", label: "Contexte (optionnel)", placeholder: "Détails, enjeux…", multiline: true },
-                ]}
-                onAdd={v => { const item = { id: Date.now(), title: v.title, owner: "", comment: v.comment || "", files: [], steps: [] }; saveItem("urgent", item); }}
-              />
-            </div>
-          )}
-
-          {/* ── TAB 4 : Projets long terme ── */}
-          {tab === "longterm" && (
-            <div>
-              <h2 style={{ fontFamily: "'Playfair Display',Georgia,serif", fontSize: 20, color: C.slate, marginTop: 0, borderBottom: `2px solid ${C.slate}`, paddingBottom: 6, marginBottom: 24 }}>
-                🏗 Projets en réflexion 2026-2027
-              </h2>
-              <p style={{ fontSize: 13, color: C.steel, marginBottom: 20 }}>
-                Projets structurants avec groupe de travail nominé. Le responsable principal est indiqué par ★.
-              </p>
-              {longterm.map(p => (
-                <LongTermCard key={p.id} project={p} onChange={updateLongterm}
-                  onDelete={() => {
-                    removeItem("longterm", p.id);
-                  }} />
-              ))}
-              <InlineAdder color={C.slate} buttonLabel="+ Ajouter un projet"
-                fields={[{ key: "title", label: "Titre du projet", placeholder: "ex : Réfection de l'ascenseur" }]}
-                onAdd={v => {
-                  const np = { id: Date.now(), title: v.title, members: [], comment: "", files: [] }; updateLongterm(np);
-                }}
-              />
-            </div>
-          )}
-
-          {/* ── TAB 5 : Plan pluriannuel ── */}
+          {/* ── TAB 4 : Plan pluriannuel (avec drag & drop) ── */}
           {tab === "ppt" && (
             <div>
               <h2 style={{ fontFamily: "'Playfair Display',Georgia,serif", fontSize: 20, color: C.slate, marginTop: 0, borderBottom: `2px solid ${C.steel}`, paddingBottom: 6, marginBottom: 6 }}>
                 📋 Plan pluriannuel de travaux
               </h2>
               <p style={{ fontSize: 13, color: C.steel, marginBottom: 28, lineHeight: 1.6 }}>
-                Élaboré à partir du dossier de restitution Reanova. Chaque section correspond à un horizon de priorisation.
-                Les responsables et champs texte sont modifiables.
+                Élaboré à partir du dossier de restitution Reanova. Glissez-déposez une fiche pour la changer de section.
               </p>
-              <PptSection
-                title="Fait"
-                color="#4caf50"
-                icon="✅"
-                items={pptData.filter(p => p.status === "Fait - Déjà voté (2025–2026)")}
-                state={pptState} setState={setPptState}
-              />
-              <PptSection
-                title="En cours"
-                color="#8bc34a"
-                icon="🔨"
-                items={pptData.filter(p => p.status === "En cours - Déjà voté (2025–2026)" || p.status === "Individuel")}
-                state={pptState} setState={setPptState}
-              />
-              <PptSection
-                title="Projets en réflexion (2026–2027)"
-                color="#e07b39"
-                icon="💡"
-                items={pptData.filter(p => p.status === "Projets en réflexion (2026-2027)")}
-                state={pptState} setState={setPptState}
-              />
-              <PptSection
-                title="Moyen terme (2027–2029)"
-                color={C.slate}
-                icon="🔭"
-                items={pptData.filter(p => p.status === "Moyen terme (2027–2029)")}
-                state={pptState} setState={setPptState}
-              />
-              <PptSection
-                title="Long terme (2030 et au-delà)"
-                color="#5c6bc0"
-                icon="🏗"
-                items={pptData.filter(p => p.status === "Long terme (2030–2033)" || p.status === "Très long terme (après 2033)")}
-                state={pptState} setState={setPptState}
-              />
+              {PPT_SECTIONS.map(section => {
+                const items = pptData.filter(p => pptSections[p.id] === section.key);
+                return (
+                  <DraggablePptSection
+                    key={section.key}
+                    section={section}
+                    items={items}
+                    pptState={pptState}
+                    setPptState={setPptState}
+                    allSections={PPT_SECTIONS}
+                    onMove={movePptItem}
+                  />
+                );
+              })}
             </div>
           )}
 
