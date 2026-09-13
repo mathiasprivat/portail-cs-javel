@@ -1296,14 +1296,30 @@ const NATURE_COLORS = {
 };
 
 // ── PptCard ────────────────────────────────────────────────────────────────────
-function PptCard({ item, accentColor, state, setState }) {
+function PptCard({ item, accentColor, state, setState, onDelete }) {
   const [open, setOpen] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(item.title);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const titleRef = useRef();
+
   const s = state[item.id] || { owner: item.owner, valeur: item.valeur, beneficiaires: item.beneficiaires, budget: "" };
   const update = (patch) => {
     const next = { ...state, [item.id]: { ...s, ...patch } };
     setState(next);
   };
   const nc = NATURE_COLORS[item.nature] || { bg: C.lightStone, text: C.steel, border: "#ccc" };
+
+  const commitTitle = () => {
+    if (titleDraft.trim()) update({ title: titleDraft.trim() });
+    setEditingTitle(false);
+  };
+
+  const handleDelete = (e) => {
+    e.stopPropagation();
+    if (confirmDelete) { onDelete && onDelete(); }
+    else { setConfirmDelete(true); setTimeout(() => setConfirmDelete(false), 3000); }
+  };
 
   return (
     <div style={{
@@ -1314,18 +1330,34 @@ function PptCard({ item, accentColor, state, setState }) {
     }}>
       {/* ── Clickable header ── */}
       <div
-        onClick={() => setOpen(o => !o)}
         style={{
           display: "flex", alignItems: "flex-start", justifyContent: "space-between",
-          gap: 10, padding: "12px 16px", cursor: "pointer",
+          gap: 10, padding: "12px 16px",
           background: open ? "white" : accentColor + "0a",
           transition: "background 0.15s",
         }}
       >
-        <div style={{ display: "flex", alignItems: "flex-start", gap: 10, flexWrap: "wrap", flex: 1, minWidth: 0 }}>
-          <span style={{ fontFamily: "'Playfair Display',Georgia,serif", fontSize: 14, fontWeight: 700, color: C.slate, lineHeight: 1.4, flex: 1 }}>
-            {item.title}
-          </span>
+        {/* Left: title + tags — clicks toggle open */}
+        <div
+          onClick={() => !editingTitle && setOpen(o => !o)}
+          style={{ display: "flex", alignItems: "flex-start", gap: 10, flexWrap: "wrap", flex: 1, minWidth: 0, cursor: editingTitle ? "default" : "pointer" }}
+        >
+          {editingTitle ? (
+            <input
+              ref={titleRef}
+              autoFocus
+              value={titleDraft}
+              onChange={e => setTitleDraft(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") commitTitle(); if (e.key === "Escape") setEditingTitle(false); }}
+              onBlur={commitTitle}
+              onClick={e => e.stopPropagation()}
+              style={{ ...inputStyle, flex: 1, padding: "3px 8px", fontSize: 14, fontWeight: 700, fontFamily: "'Playfair Display',Georgia,serif" }}
+            />
+          ) : (
+            <span style={{ fontFamily: "'Playfair Display',Georgia,serif", fontSize: 14, fontWeight: 700, color: C.slate, lineHeight: 1.4, flex: 1 }}>
+              {s.title || item.title}
+            </span>
+          )}
           <span style={{
             fontSize: 10, fontWeight: 700, fontFamily: "Inter, system-ui, sans-serif",
             textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap",
@@ -1343,7 +1375,33 @@ function PptCard({ item, accentColor, state, setState }) {
             </span>
           )}
         </div>
-        <span style={{ color: C.steel, fontSize: 12, flexShrink: 0, marginTop: 2 }}>{open ? "▲" : "▼"}</span>
+
+        {/* Right: action icons + toggle */}
+        <div style={{ display: "flex", alignItems: "center", gap: 5, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+          {!editingTitle && (
+            <span onClick={() => { setTitleDraft(s.title || item.title); setEditingTitle(true); setTimeout(() => titleRef.current?.focus(), 30); }}
+              title="Modifier le titre"
+              style={{ cursor: "pointer", fontSize: 13, opacity: 0.4, padding: "2px 3px" }}
+              onMouseEnter={e => e.currentTarget.style.opacity = "0.9"}
+              onMouseLeave={e => e.currentTarget.style.opacity = "0.4"}>✏️</span>
+          )}
+          {onDelete && (
+            <span onClick={handleDelete}
+              title={confirmDelete ? "Cliquer pour confirmer" : "Supprimer"}
+              style={{
+                cursor: "pointer", fontSize: confirmDelete ? 11 : 14, padding: "2px 6px", borderRadius: 4,
+                background: confirmDelete ? C.red : "transparent",
+                color: confirmDelete ? "white" : "inherit",
+                opacity: confirmDelete ? 1 : 0.4,
+                fontFamily: "Inter, system-ui, sans-serif", fontWeight: confirmDelete ? 700 : 400,
+                transition: "all 0.15s",
+              }}
+              onMouseEnter={e => { if (!confirmDelete) e.currentTarget.style.opacity = "0.9"; }}
+              onMouseLeave={e => { if (!confirmDelete) e.currentTarget.style.opacity = "0.4"; }}
+            >{confirmDelete ? "Confirmer ?" : "×"}</span>
+          )}
+          <span onClick={() => setOpen(o => !o)} style={{ color: C.steel, fontSize: 12, cursor: "pointer", padding: "2px 3px" }}>{open ? "▲" : "▼"}</span>
+        </div>
       </div>
 
       {/* ── Expandable body ── */}
@@ -1382,7 +1440,7 @@ function PptCard({ item, accentColor, state, setState }) {
 }
 
 // ── Draggable PPT section (drag & drop between sections) ─────────────────────
-function DraggablePptSection({ section, items, pptState, setPptState, allSections, onMove }) {
+function DraggablePptSection({ section, items, pptState, setPptState, allSections, onMove, pptSections }) {
   const [open, setOpen] = useState(true);
   const [dragOver, setDragOver] = useState(false);
 
@@ -1477,7 +1535,9 @@ function PptSection({ title, icon, color, items, state, setState }) {
         <span style={{ color: C.steel, fontSize: 12 }}>{open ? "▲" : "▼"}</span>
       </div>
       {open && items.map(item => (
-        <PptCard key={item.id} item={item} accentColor={color} state={state} setState={setState} />
+        <PptCard key={item.id} item={item} accentColor={color} state={state} setState={setState}
+          onDelete={() => onMove(item.id, "__deleted__")}
+        />
       ))}
     </div>
   );
@@ -1618,7 +1678,19 @@ function Portal() {
   const mkUpdater = (collName) => (updated) => saveItem(collName, updated);
   const mkDeleter = (collName) => (id) => removeItem(collName, id);
 
-  const updateLongterm = (updated) => saveItem("longterm", updated);
+  // Longterm needs optimistic local update too so UI reflects immediately
+  const updateLongterm = (updated) => {
+    saveItem("longterm", updated);
+    setLongterm(prev => {
+      const exists = prev.some(p => String(p.id) === String(updated.id));
+      return exists ? prev.map(p => String(p.id) === String(updated.id) ? updated : p) : [...prev, updated];
+    });
+  };
+
+  const deleteLongterm = (id) => {
+    fbDelete("longterm", id);
+    setLongterm(prev => prev.filter(p => String(p.id) !== String(id)));
+  };
 
   const setPptState = (next) => {
     setPptStateRaw(next);
@@ -1816,7 +1888,7 @@ function Portal() {
                 </p>
                 {longterm.map(p => (
                   <LongTermCard key={p.id} project={p} onChange={updateLongterm}
-                    onDelete={() => removeItem("longterm", p.id)} />
+                    onDelete={() => deleteLongterm(p.id)} />
                 ))}
                 <InlineAdder color="#5d8a3c" buttonLabel="+ Ajouter une résolution"
                   fields={[{ key: "title", label: "Titre de la résolution", placeholder: "ex : Remplacement chaudières — option PAC" }]}
@@ -1872,6 +1944,7 @@ function Portal() {
                     setPptState={setPptState}
                     allSections={PPT_SECTIONS}
                     onMove={movePptItem}
+                    pptSections={pptSections}
                   />
                 );
               })}
