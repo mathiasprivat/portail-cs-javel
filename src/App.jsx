@@ -1530,17 +1530,11 @@ function Portal() {
     return map;
   };
 
-  const [pptSections, setPptSectionsRaw] = useState(() => {
-    try {
-      const saved = localStorage.getItem("ppt-sections");
-      if (saved) return JSON.parse(saved);
-    } catch {}
-    return initPptSections();
-  });
+  const [pptSections, setPptSectionsRaw] = useState(initPptSections);
 
   const setPptSections = (next) => {
     setPptSectionsRaw(next);
-    try { localStorage.setItem("ppt-sections", JSON.stringify(next)); } catch {}
+    setDoc(doc(db, "shared", "ppt-sections"), next).catch(() => {});
   };
 
   const movePptItem = (itemId, targetSectionKey) => {
@@ -1582,7 +1576,7 @@ function Portal() {
 
   useEffect(() => {
     let count = 0;
-    const total = 8;
+    const total = 9; // number of collections to load
     const markLoaded = () => { count++; if (count >= total) setLoaded(true); };
 
     const unsubs = [
@@ -1595,6 +1589,16 @@ function Portal() {
       onSnapshot(collection(db, "longterm"),  s => { setLongterm(snapToList(s, INIT_LONGTERM, "longterm")); markLoaded(); }),
       onSnapshot(doc(db, "shared", "ppt"),    d => {
         if (d.exists()) setPptStateRaw(d.data());
+        markLoaded();
+      }),
+      onSnapshot(doc(db, "shared", "ppt-sections"), d => {
+        if (d.exists()) setPptSectionsRaw(d.data());
+        else {
+          // First time: seed initial sections into Firestore
+          const init = initPptSections();
+          setPptSectionsRaw(init);
+          setDoc(doc(db, "shared", "ppt-sections"), init).catch(() => {});
+        }
         markLoaded();
       }),
     ];
