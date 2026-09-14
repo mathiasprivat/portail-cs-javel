@@ -1440,7 +1440,7 @@ function PptCard({ item, accentColor, state, setState, onDelete }) {
 }
 
 // ── Draggable PPT section (drag & drop between sections) ─────────────────────
-function DraggablePptSection({ section, items, pptState, setPptState, allSections, onMove, pptSections }) {
+function DraggablePptSection({ section, items, pptState, setPptState, allSections, onMove, pptSections, onAddItem }) {
   const [open, setOpen] = useState(true);
   const [dragOver, setDragOver] = useState(false);
 
@@ -1471,7 +1471,7 @@ function DraggablePptSection({ section, items, pptState, setPptState, allSection
       >
         <span style={{ fontSize: 16 }}>{section.icon}</span>
         <span style={{ fontFamily: "'Playfair Display',Georgia,serif", fontSize: 15, fontWeight: 700, color: C.slate, flex: 1 }}>{section.label}</span>
-        {dragOver && <span style={{ fontSize: 11, color: section.color, fontWeight: 700, fontFamily: "Inter, system-ui, sans-serif" }}>Déposer ici</span>}
+        {dragOver && <span style={{ fontSize: 11, color: section.color, fontWeight: 700, fontFamily: "Inter, system-ui, sans-serif" }}>Deposer ici</span>}
         <span style={{ background: section.color, color: "white", borderRadius: 12, padding: "1px 9px", fontSize: 11, fontWeight: 700, fontFamily: "Inter, system-ui, sans-serif" }}>{items.length}</span>
         <span style={{ color: C.steel, fontSize: 12 }}>{open ? "▲" : "▼"}</span>
       </div>
@@ -1480,18 +1480,24 @@ function DraggablePptSection({ section, items, pptState, setPptState, allSection
           key={item.id}
           draggable
           onDragStart={e => {
-            e.dataTransfer.setData("ppt-item-id", item.id);
+            e.dataTransfer.setData("ppt-item-id", String(item.id));
             e.dataTransfer.effectAllowed = "move";
           }}
           style={{ cursor: "grab" }}
         >
-          <PptCard item={item} accentColor={section.color} state={pptState} setState={setPptState} />
+          <PptCard
+            item={item}
+            accentColor={section.color}
+            state={pptState}
+            setState={setPptState}
+            onDelete={() => onMove(String(item.id), "__deleted__")}
+          />
         </div>
       ))}
       {open && items.length === 0 && (
         <div style={{
           border: `2px dashed ${section.color}40`, borderRadius: 8,
-          padding: "20px", textAlign: "center",
+          padding: "16px", textAlign: "center",
           fontSize: 12, color: C.steel, fontStyle: "italic",
           fontFamily: "Inter, system-ui, sans-serif",
           background: dragOver ? section.color + "10" : "transparent",
@@ -1502,6 +1508,19 @@ function DraggablePptSection({ section, items, pptState, setPptState, allSection
           onDrop={handleDrop}
         >
           Glissez une fiche ici
+        </div>
+      )}
+      {open && (
+        <div style={{ marginTop: 8 }}>
+          <InlineAdder
+            color={section.color}
+            buttonLabel="+ Ajouter une resolution"
+            fields={[
+              { key: "title",  label: "Titre des travaux", placeholder: "ex : Remplacement de la porte d'entree" },
+              { key: "nature", label: "Nature", placeholder: "ex : Travaux necessaires" },
+            ]}
+            onAdd={v => onAddItem(section.key, v.title, v.nature || "Travaux necessaires")}
+          />
         </div>
       )}
     </div>
@@ -1598,7 +1617,21 @@ function Portal() {
   };
 
   const movePptItem = (itemId, targetSectionKey) => {
-    setPptSections({ ...pptSections, [itemId]: targetSectionKey });
+    setPptSections({ ...pptSections, [String(itemId)]: targetSectionKey });
+  };
+
+  // Custom PPT items added by users (stored in Firebase ppt-custom collection)
+  const [customPptItems, setCustomPptItems] = useState([]);
+
+  const onAddPptItem = (sectionKey, title, nature) => {
+    const id = "custom-" + Date.now();
+    const item = { id, title, nature, owner: "", valeur: "", beneficiaires: "", budget: "", status: sectionKey };
+    // Save to Firebase
+    fbSet("ppt-custom", id, item).catch(() => {});
+    // Assign to section
+    setPptSections({ ...pptSections, [id]: sectionKey });
+    // Add to local state immediately
+    setCustomPptItems(prev => [...prev, item]);
   };
 
   const [agenda, setAgenda] = useState({
@@ -1671,9 +1704,12 @@ function Portal() {
       }),
     ];
 
-    // Also listen to agenda
+    // Also listen to agenda and custom ppt items
     onSnapshot(doc(db, "shared", "agenda"), d => {
       if (d.exists()) setAgenda(d.data());
+    });
+    onSnapshot(collection(db, "ppt-custom"), snap => {
+      setCustomPptItems(snap.docs.map(d => d.data()));
     });
 
     return () => unsubs.forEach(u => u());
@@ -1942,7 +1978,8 @@ function Portal() {
                 Élaboré à partir du dossier de restitution Reanova. Glissez-déposez une fiche pour la changer de section.
               </p>
               {PPT_SECTIONS.map(section => {
-                const items = pptData.filter(p => pptSections[p.id] === section.key);
+                const allItems = [...pptData, ...customPptItems];
+                const items = allItems.filter(p => pptSections[String(p.id)] === section.key);
                 return (
                   <DraggablePptSection
                     key={section.key}
@@ -1953,6 +1990,7 @@ function Portal() {
                     allSections={PPT_SECTIONS}
                     onMove={movePptItem}
                     pptSections={pptSections}
+                    onAddItem={onAddPptItem}
                   />
                 );
               })}
